@@ -1,0 +1,76 @@
+services: 
+  # Service to run Docker inside a container.
+  # Jenkins will use it to run Docker commands.
+  dind:
+    # dind is the official Docker-in-Docker image.
+    image: docker:dind
+    # Naming the dind container for docker ps.
+    container_name: assessment2-dind
+    # dind needs extra permissions to run docker inside a container.
+    privileged: true
+    environment:
+      # Enables TLS certificates for secure jenkins to dind communication.
+      DOCKER_TLS_CERTDIR: /certs
+    volumes:
+      # Shares Docker TLS client certificates with jenkins container.
+      - jenkins-docker-certs:/certs/client
+      # To keeps docker images and build cache after the container restarts.
+      - dind-storage:/var/lib/docker
+    networks:
+      # Connecting dind to the same private network as jenkins.
+      jenkins-net:
+        aliases:
+          # Gives the dind container the network name "docker".
+          # Jenkins uses this name in DOCKER_HOST.
+          - docker
+
+  # Service to run jenkins.
+  jenkins:
+    # Official Jenkins image
+    image: jenkins/jenkins:lts
+    # Naming the jenkins container (useful for commands like docker exec).
+    container_name: assessment2-jenkins
+    # Run as root so Jenkins can use the installed docker CLI.
+    user: root
+
+    ports:
+      # Opening jenkins in the browser at http://localhost:8080.
+      - "8080:8080"
+      # Jenkins default internal communication port.
+      - "50000:50000"
+
+    environment:
+      # Tells Jenkins to send Docker commands to the dind container.
+      DOCKER_HOST: tcp://docker:2376
+      # Location of the docker TLS client certificates inside jenkins.
+      DOCKER_CERT_PATH: /certs/client
+      # Enables TLS verification for docker communication.
+      DOCKER_TLS_VERIFY: "1"
+
+    volumes:
+      # Mounts the docker CLI from the ubuntu host into the jenkins container.
+      - /usr/bin/docker:/usr/bin/docker
+      # Keeps jenkins settings, plugins, jobs, and build history.
+      - jenkins-home:/var/jenkins_home
+      # Mounts the docker TLS client certificates as read-only.
+      - jenkins-docker-certs:/certs/client:ro
+
+    depends_on:
+      # Starts dind before jenkins.
+      - dind
+
+    networks:
+      # Connects jenkins to the same private network as dind.
+      - jenkins-net
+
+volumes:
+  # Stores jenkins data.
+  jenkins-home:
+  # Stores dind data.
+  dind-storage: 
+  # Shared TLS certificates for Jenkins-to-DinD communication.
+  jenkins-docker-certs:
+
+networks:
+  # Private network for jenkins and dind.
+  jenkins-net:
