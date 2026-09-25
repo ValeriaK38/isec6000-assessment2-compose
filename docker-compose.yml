@@ -16,6 +16,9 @@ services:
       - jenkins-docker-certs:/certs/client
       # To keeps docker images and build cache after the container restarts.
       - dind-storage:/var/lib/docker
+      # Makes the Jenkins workspace visible to the DinD Docker daemon.
+      # This is needed for Jenkins Docker agents to mount the workspace correctly.
+      - jenkins-home:/var/jenkins_home
     networks:
       # Connecting dind to the same private network as jenkins.
       jenkins-net:
